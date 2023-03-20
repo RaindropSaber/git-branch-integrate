@@ -9,7 +9,7 @@ const checkout = async (branch, baseline) => {
     if (baseline) return git.checkout(['-b', branch, baseline]).catch(() => git.checkout([branch]));
     return git.checkout([branch]);
   } catch (e) {
-    logger.log(`checkout  ${branch} from ${baseline} 失败`, e);
+    logger.error(`checkout  ${branch} from ${baseline} 失败`, e);
     return Promise.reject(e);
   }
 };
@@ -17,7 +17,7 @@ const checkoutRemote = async (branch) => {
   return checkout(branch, `origin/${branch}`);
 };
 
-const integrateTask = async ({ baseline, target, source, tempBranch }) => {
+const integrateTask = async ({ baseline, target, source, tempBranch, autoRebase }) => {
   // 依次 将集成分支合入 temp-xxxx
   const integrateRes = await asyncMap(source, async (source) => {
     logger.info(`正在集成 ${source} 到 ${target}`);
@@ -27,19 +27,24 @@ const integrateTask = async ({ baseline, target, source, tempBranch }) => {
       logger.warn(`未发现远端分支：${source}，跳过集成`);
       return [null, { msg: `未发现远端分支：${source}，跳过集成`, source, target }];
     }
-    const baselineLastedCommit = await git.revparse([baseline]);
-    const sourceForkCommit = (await git.raw(['merge-base', baseline, source])).replace(/\r|\n/gi, '');
-    if (baselineLastedCommit !== sourceForkCommit) {
-      logger.log(`基线最新的提交记录:${baselineLastedCommit}`);
-      logger.log(`从基线拉出时的提交:${sourceForkCommit}`);
-      try {
-        logger.warn(`${source}落后于${baseline}，尝试 rebase ${baseline}`);
-        await git.raw(['rebase', baseline]);
-        logger.log(`${source} rebase ${baseline} 成功`);
-      } catch (err) {
-        logger.error(`${source} rebase ${baseline} 失败,请在本地 rebase 后重新提交`);
-        await git.rebase({ '--abort': true }).catch(() => {});
-        return [err, { err, message: `${source} rebase ${baseline} 失败,请在本地 rebase 后重新提交` }];
+    if (autoRebase) {
+      logger.info('检测是否需要 rebase');
+      const baselineLastedCommit = await git.revparse([baseline]);
+      const sourceForkCommit = (await git.raw(['merge-base', '--fork-point', baseline])).replace(/\r|\n/gi, '');
+      if (baselineLastedCommit !== sourceForkCommit) {
+        logger.log(`基线最新的提交记录:${baselineLastedCommit}`);
+        logger.log(`从基线拉出时的提交:${sourceForkCommit}`);
+        try {
+          logger.warn(`${source}落后于${baseline}，尝试 rebase ${baseline}`);
+          await git.raw(['rebase', baseline]);
+          logger.log(`${source} rebase ${baseline} 成功`);
+        } catch (err) {
+          logger.error(`${source} rebase ${baseline} 失败,请在本地 rebase 后重新提交`);
+          await git.rebase({ '--abort': true }).catch(() => {});
+          return [err, { err, message: `${source} rebase ${baseline} 失败,请在本地 rebase 后重新提交` }];
+        }
+      } else {
+        logger.info('不需要 rebase ');
       }
     }
     await checkout(tempBranch);
@@ -85,38 +90,41 @@ const integrateTask = async ({ baseline, target, source, tempBranch }) => {
   };
 };
 
-const integrate = async ({ baseline, target, source } = { baseline: 'master' }) => {
+const integrate = async ({ baseline, target, source, current, autoRebase } = { baseline: 'master' }) => {
   if (!target || !source || source.length === 0) {
     logger.warn('无集成目标分支或集成来源分支');
     return { success: true };
   }
-  //获取需要集成的分支和目标分支
-  const { current: currentBranch } = await git.branch();
+  if (!current) {
+    //获取需要集成的分支和目标分支
+    current = (await git.branch()).current;
+  }
   const tempBranch = `temp-${new Date().getTime()}`;
 
-  logger.log('当前分支', currentBranch);
+  logger.log('当前分支', current);
   logger.log('主干分支', baseline);
   logger.log('临时分支', tempBranch);
   logger.log('集成分支', target);
   logger.log('来源分支', source);
-  if (!source.includes(currentBranch) && baseline !== currentBranch) {
+  logger.log('自动rebase', autoRebase);
+  if (!source.includes(current) && baseline !== current) {
     logger.warn('当前分支不属于集成分支');
     return { success: true };
   }
-  if (baseline === currentBranch) logger.warn('主干分支更新,主动更新');
+  if (baseline === current) logger.warn('主干分支更新,主动更新');
   await checkoutRemote(baseline);
   await checkout(tempBranch, baseline);
 
   logger.info('集成任务开始');
   let taskRes;
   try {
-    taskRes = await integrateTask({ currentBranch, baseline, target, source, tempBranch });
+    taskRes = await integrateTask({ current, baseline, target, source, tempBranch, autoRebase });
     logger[taskRes.success ? 'success' : 'error']('集成任务结果', JSON.stringify(taskRes));
   } catch (e) {
     logger.error('集成任务异常，中断集成', e);
   }
   logger.log(`还原目录及分支`);
-  await checkout(currentBranch);
+  await checkout(current);
   await git.branch(['-D', tempBranch]);
   logger[taskRes.success ? 'success' : 'error'](`集成任务结束`);
   return taskRes;
