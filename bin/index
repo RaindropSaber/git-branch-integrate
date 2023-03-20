@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+const { program } = require('commander');
+const integrate = require('../');
+const path = require('path');
+const pkg = require(path.resolve(__dirname, '../package.json'));
+
+program
+  .option('-b, --baseline <baseline>', '集成的主干分支，默认 master', 'master')
+  .requiredOption('-t, --target <target>', '集成的目标分支')
+  .requiredOption('-s, --source <source...>', '需要集成的分支')
+  .version(pkg.version);
+
+const main = async () => {
+  program.parse(process.argv);
+
+  const { baseline, target, source } = program.opts();
+  const res = await integrate({ baseline, target, source });
+
+  process.exit(res.success ? 1 : 0);
+};
+
+main();

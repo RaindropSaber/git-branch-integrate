@@ -1,0 +1,29 @@
+{
+  "name": "git-branch-integrate",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:RaindropSaber/git-branch-integrate.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "branch-integrate": "./bin/index"
+  },
+  "keywords": [
+    "git",
+    "gitflow",
+    "merge",
+    "integration"
+  ],
+  "author": "raindropsaber <raindropsaber@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "colors": "^1.4.0",
+    "commander": "^10.0.0",
+    "simple-git": "^3.16.0"
+  }
+}
