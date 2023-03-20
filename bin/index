@@ -5,18 +5,28 @@ const path = require('path');
 const pkg = require(path.resolve(__dirname, '../package.json'));
 
 program
-  .option('-b, --baseline <baseline>', '集成的主干分支，默认 master', 'master')
   .requiredOption('-t, --target <target>', '集成的目标分支')
   .requiredOption('-s, --source <source...>', '需要集成的分支')
+  .option('-b, --baseline <baseline>', '集成的主干分支，默认 master', 'master')
+  .option('-c, --current <current>', '当前运行的分支，默认为当前环境 checkout 的分支')
+  .option(
+    '-ar, --auto-rebase <autoRebase>',
+    '是否自动 rebase 基线,默认 true',
+    (value) => {
+      return value === 'false' ? false : true;
+    },
+    true
+  )
   .version(pkg.version);
 
 const main = async () => {
   program.parse(process.argv);
 
-  const { baseline, target, source } = program.opts();
-  const res = await integrate({ baseline, target, source });
+  const { baseline, target, source, current, autoRebase } = program.opts();
+  console.log(`autoRebase`, autoRebase);
+  const res = await integrate({ baseline, target, source, current, autoRebase });
 
-  process.exit(res.success ? 1 : 0);
+  process.exit(res && res.success ? 0 : 1);
 };
 
 main();
