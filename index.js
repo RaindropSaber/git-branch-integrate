@@ -30,7 +30,7 @@ const integrateTask = async ({ baseline, target, source, tempBranch, autoRebase 
     if (autoRebase) {
       logger.info('检测是否需要 rebase');
       const baselineLastedCommit = await git.revparse([baseline]);
-      const sourceForkCommit = (await git.raw(['merge-base', '--fork-point', baseline])).replace(/\r|\n/gi, '');
+      const sourceForkCommit = (await git.raw(['merge-base', baseline, source])).replace(/\r|\n/gi, '');
       if (baselineLastedCommit !== sourceForkCommit) {
         logger.log(`基线最新的提交记录:${baselineLastedCommit}`);
         logger.log(`从基线拉出时的提交:${sourceForkCommit}`);
@@ -52,6 +52,7 @@ const integrateTask = async ({ baseline, target, source, tempBranch, autoRebase 
       .mergeFromTo(`${source}`, tempBranch)
       .then((res) => [null, { ...JSON.parse(JSON.stringify(res)), source, target }])
       .catch(async (err) => {
+        logger.error('merge error', err, err.git, Object.keys(err), JSON.stringify(err));
         const conflictsList = err.git.conflicts.map(({ file }) => file);
         await git.merge({ '--abort': true });
         const conflictsBranch = (

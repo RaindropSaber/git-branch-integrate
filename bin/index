@@ -23,10 +23,14 @@ const main = async () => {
   program.parse(process.argv);
 
   const { baseline, target, source, current, autoRebase } = program.opts();
-  console.log(`autoRebase`, autoRebase);
-  const res = await integrate({ baseline, target, source, current, autoRebase });
-
-  process.exit(res && res.success ? 0 : 1);
+  integrate({ baseline, target, source, current, autoRebase })
+    .then((res) => {
+      process.exit(res && res.success ? 0 : 1);
+    })
+    .catch((e) => {
+      console.log('err', e);
+      process.exit(1);
+    });
 };
 
 main();
