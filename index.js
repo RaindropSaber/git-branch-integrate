@@ -31,7 +31,9 @@ const integrateTask = async ({ baseline, target, source, tempBranch, autoRebase 
       logger.info('检测是否需要 rebase');
       const baselineLastedCommit = await git.revparse([baseline]);
       const sourceForkCommit = (await git.raw(['merge-base', baseline, source])).replace(/\r|\n/gi, '');
-      if (baselineLastedCommit !== sourceForkCommit) {
+      if (!sourceForkCommit) {
+        logger.warn(`获取祖先节点失败，不进行 rebase`);
+      }else if (baselineLastedCommit !== sourceForkCommit) {
         logger.log(`基线最新的提交记录:${baselineLastedCommit}`);
         logger.log(`从基线拉出时的提交:${sourceForkCommit}`);
         try {
